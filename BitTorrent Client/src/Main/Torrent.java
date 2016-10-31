@@ -243,10 +243,13 @@ public class Torrent {
 	    	return;
 	    }
 	    
-	    System.out.println("HANDSHAKE");
+	    System.out.println("HANDSHAKE COMPLETE");
 	    ToolKit.print(responseBuffer);
 	    
 	    responseBuffer.clear();
+	    
+	    byte[] messages = new byte[5];
+	    responseBuffer = ByteBuffer.wrap(messages);
 	    
 	    try {
 			input.readFully(response);
@@ -256,9 +259,11 @@ public class Torrent {
 			return;
 		}
 	    
-	    ToolKit.print(responseBuffer);
+	    responseString = new String(response, "ASCII");
 	    
-	    responseBuffer.clear();
+	    System.out.println(responseString);
+	    
+	    
 	    
 	    try {
 			sendInterested();
@@ -269,12 +274,15 @@ public class Torrent {
 		}
 	    
 	    try {
-			input.readFully(response);
+			input.readFully(messages);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 			return;
 		}
+	    
+	    System.out.println(messages[4]);
+	    
 	    
 	    
 	    
