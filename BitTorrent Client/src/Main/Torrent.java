@@ -69,6 +69,8 @@ public class Torrent {
 	private DataInputStream input;
 	private DataOutputStream output;
 	
+	private ByteBuffer responseBuffer;
+	
 	
 	public Torrent(TorrentInfo ti, String fileName){
 		this.torrentInfo = ti;
@@ -149,9 +151,9 @@ public class Torrent {
 	
 	//for each peer in the list of authorized -RU peers, download from them
 	public void start() throws UnsupportedEncodingException{
-		for(Peer p : peers){
-			download(p);
-		}
+		Peer p = peers.get(0);
+		
+		download(p);
 	}
 	
 	public void close() throws IOException{
@@ -226,7 +228,7 @@ public class Torrent {
 	    }
 	    
 	    //check info_hash
-	    ByteBuffer responseBuffer = ByteBuffer.wrap(response);
+	    responseBuffer = ByteBuffer.wrap(response);
 	    
 	    byte[] infoHashArray = new byte[20];
 	    
@@ -241,6 +243,47 @@ public class Torrent {
 	    	return;
 	    }
 	    
+	    System.out.println("HANDSHAKE");
+	    ToolKit.print(responseBuffer);
+	    
+	    responseBuffer.clear();
+	    
+	    try {
+			input.readFully(response);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
+	    
+	    ToolKit.print(responseBuffer);
+	    
+	    responseBuffer.clear();
+	    
+	    try {
+			sendInterested();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
+	    
+	    try {
+			input.readFully(response);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
+	    
+	    
+	    
+	    
+	    
+	    
+	    
+	    
+	    /*
 	    //send interested message
 	    try {
 			sendInterested();
@@ -263,7 +306,7 @@ public class Torrent {
 	    
 	    System.out.println(checkArrayEquality(response, INTERESTED));
 	    
-	    
+	    */
 	    
 	    
 	    
