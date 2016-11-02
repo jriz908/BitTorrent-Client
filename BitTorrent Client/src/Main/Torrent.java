@@ -6,6 +6,9 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
@@ -38,19 +41,22 @@ public class Torrent {
 	public static final byte[] ZEROES = new byte[]{'0', '0', '0', '0', '0', '0', '0', '0'};
 	
 	//messages to peer
-	public final byte[] INTERESTED = new byte[]{0, 0, 0, 1, 2};
-	public final byte[] UNCHOKE = new byte[]{0, 0, 0, 1, 1};
-	public final byte[] REQUEST = new byte[]{0, 0, 0, 13, 6};
-	public final byte[] PIECE = new byte[]{0, 0, 0, 0, 7};
+	public final ByteBuffer KEEP_ALIVE = ByteBuffer.wrap(new byte[]{0, 0, 0, 0});
+	public final ByteBuffer INTERESTED = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 2});
+	public final ByteBuffer UNINTERESTED = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 3});
+	public final ByteBuffer CHOKE = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 0});
+	public final ByteBuffer UNCHOKE = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 1});
+	public final ByteBuffer REQUEST = ByteBuffer.wrap(new byte[]{0, 0, 0, 13, 6});
+	public final ByteBuffer PIECE = ByteBuffer.wrap(new byte[]{0, 0, 0, 0, 7});
 	
-	
-	
+	public final int LENGTH = 16384 ;
 	
 	
 	
 	private TorrentInfo torrentInfo;
 	
-	private String fileNameToCreate;
+	
+	private FileOutputStream fos;
 	
 	private int port = 6881;
 	private int downloaded;
@@ -71,10 +77,13 @@ public class Torrent {
 	
 	private ByteBuffer responseBuffer;
 	
+	private int index = 0;
 	
-	public Torrent(TorrentInfo ti, String fileName){
+	
+	
+	public Torrent(TorrentInfo ti, String fileName) throws FileNotFoundException{
 		this.torrentInfo = ti;
-		this.fileNameToCreate = fileName;
+		this.fos = new FileOutputStream(new File(fileName));
 		this.peerID = generateRandomID();
 		this.infoHash = encodeInfoHash(torrentInfo.info_hash.array());
 		this.downloaded = 0;
@@ -150,8 +159,8 @@ public class Torrent {
 	}
 	
 	//for each peer in the list of authorized -RU peers, download from them
-	public void start() throws UnsupportedEncodingException{
-		Peer p = peers.get(0);
+	public void start() throws IOException, BencodingException{
+		Peer p = peers.get(2);
 		
 		download(p);
 	}
@@ -163,7 +172,7 @@ public class Torrent {
 	}
 	
 	//begin the process of downloading from peer
-	public void download(Peer peer) throws UnsupportedEncodingException{
+	public void download(Peer peer) throws IOException, BencodingException{
 		
 		String ip = peer.getIP();
 		int port = peer.getPort();
@@ -248,8 +257,7 @@ public class Torrent {
 	    
 	    responseBuffer.clear();
 	    
-	    byte[] messages = new byte[5];
-	    responseBuffer = ByteBuffer.wrap(messages);
+	    
 	    
 	    try {
 			input.readFully(response);
@@ -259,11 +267,18 @@ public class Torrent {
 			return;
 		}
 	    
+	    //DISCARD BITFIELD
+	    
 	    responseString = new String(response, "ASCII");
 	    
 	    System.out.println(responseString);
 	    
+	    System.out.println(response[4]);
 	    
+	    //send interested
+	    
+	    byte[] messages = new byte[5];
+	    responseBuffer = ByteBuffer.wrap(messages);
 	    
 	    try {
 			sendInterested();
@@ -281,54 +296,112 @@ public class Torrent {
 			return;
 		}
 	    
-	    System.out.println(messages[4]);
 	    
 	    
+	    if(messages[4] == 1){
+	    	System.out.println("Unchoke complete");
+	    	peer.setUnchoked(true);
+	    }
 	    
+	    sendRequestToTracker();
 	    
+	    byte[] messages2 = new byte[14];
+    	ByteBuffer messagesBuffer = ByteBuffer.wrap(messages2);
+    	
+    	byte[] piece = new byte[LENGTH];
+    	ByteBuffer pieceBuffer = ByteBuffer.wrap(piece);
 	    
-	    
-	    
-	    
-	    
-	    /*
-	    //send interested message
-	    try {
-			sendInterested();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return;
-		}
-	    
-	    //read interested message
-	    response = new byte[5];
-	    try {
-			input.readFully(response);
-			
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return;
-		}
-	    
-	    System.out.println(checkArrayEquality(response, INTERESTED));
-	    
-	    */
-	    
-	    
-	    
-	    
-	    
-	    
-	    
-	    
-	    
-	    
-	    
+	    //while(left > 0){
+
+	    	try {
+	    		sendRequest();
+	    	} catch (IOException e) {
+	    		// TODO Auto-generated catch block
+	    		e.printStackTrace();
+	    	}
+
+	    	try {
+	    		input.readFully(messages2);
+	    	} catch (IOException e) {
+	    		// TODO Auto-generated catch block
+	    		e.printStackTrace();
+	    		return;
+	    	}
+
+
+
+	    	int size = messagesBuffer.getInt();
+
+	    	System.out.println(size);
+	    	System.out.println(messagesBuffer.get());
+	    	System.out.println(messagesBuffer.get());
+	    	System.out.println(messagesBuffer.getInt());
+	    	System.out.println(messagesBuffer.getInt());
+
+	    	
+	    	
+
+	    	try {
+	    		input.readFully(piece);
+	    	} catch (IOException e) {
+	    		// TODO Auto-generated catch block
+	    		e.printStackTrace();
+	    		return;
+	    	}
+	    	
+	    	try {
+				writeToFile(piece);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				return;
+			}
+	    	
+	    	pieceBuffer.clear();
+	    	
+	    	try {
+				sendHave();
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+	    	
+	    	
+	    	
+	    	downloaded += LENGTH;
+	    	left -= LENGTH;
+	    	
+	    	
+	    	
+	    	pieceBuffer.clear();
+	    	messagesBuffer.clear();
+	    	
+	    	System.out.println("loop done: " + index);
+	    	
+	    	index++;
+	    	
+	    	try {
+	    		sendRequest();
+	    	} catch (IOException e) {
+	    		// TODO Auto-generated catch block
+	    		e.printStackTrace();
+	    	}
+
+	    	try {
+	    		input.readFully(messages2);
+	    	} catch (IOException e) {
+	    		// TODO Auto-generated catch block
+	    		e.printStackTrace();
+	    		return;
+	    	}
+	   // }
 	    
 		
 		
+	}
+	
+	public void writeToFile(byte[] piece) throws IOException{
+		fos.write(piece);
 	}
 	
 	//for checking responses from peer
@@ -367,15 +440,39 @@ public class Torrent {
 		
 	}
 	
+	public void sendHave() throws IOException{
+		
+		ByteBuffer buffer = ByteBuffer.allocate(9);
+		
+		buffer.putInt(5);
+		buffer.put((byte) 4);
+		buffer.putInt(index);
+		
+		sendMessage(buffer);
+		
+	}
+	
+	public void sendRequest() throws IOException{
+		ByteBuffer buffer = ByteBuffer.allocate(17);
+		
+		buffer.put(REQUEST);
+		buffer.putInt(index);
+		buffer.putInt(0);
+		buffer.putInt(LENGTH);
+		
+		
+		sendMessage(buffer);
+	}
+	
 	//send an unchoke message to the peer
 	public void sendUnchoke() throws IOException{
-		ByteBuffer buffer = ByteBuffer.wrap(UNCHOKE);
+		ByteBuffer buffer = UNCHOKE;
 		sendMessage(buffer);
 	}
 	
 	//send an interested message to the peer
 	public void sendInterested() throws IOException{
-		ByteBuffer buffer = ByteBuffer.wrap(INTERESTED);
+		ByteBuffer buffer = INTERESTED;
 		sendMessage(buffer);
 	}
 	
