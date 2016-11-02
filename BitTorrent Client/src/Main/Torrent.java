@@ -41,15 +41,15 @@ public class Torrent {
 	public static final byte[] ZEROES = new byte[]{'0', '0', '0', '0', '0', '0', '0', '0'};
 	
 	//messages to peer
-	public final ByteBuffer KEEP_ALIVE = ByteBuffer.wrap(new byte[]{0, 0, 0, 0});
-	public final ByteBuffer INTERESTED = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 2});
-	public final ByteBuffer UNINTERESTED = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 3});
-	public final ByteBuffer CHOKE = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 0});
-	public final ByteBuffer UNCHOKE = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 1});
-	public final ByteBuffer REQUEST = ByteBuffer.wrap(new byte[]{0, 0, 0, 13, 6});
-	public final ByteBuffer PIECE = ByteBuffer.wrap(new byte[]{0, 0, 0, 0, 7});
+	public static final ByteBuffer KEEP_ALIVE = ByteBuffer.wrap(new byte[]{0, 0, 0, 0});
+	public static final ByteBuffer INTERESTED = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 2});
+	public static final ByteBuffer UNINTERESTED = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 3});
+	public static final ByteBuffer CHOKE = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 0});
+	public static final ByteBuffer UNCHOKE = ByteBuffer.wrap(new byte[]{0, 0, 0, 1, 1});
+	public static final ByteBuffer REQUEST = ByteBuffer.wrap(new byte[]{0, 0, 0, 13, 6});
+	public static final ByteBuffer PIECE = ByteBuffer.wrap(new byte[]{0, 0, 0, 0, 7});
 	
-	public final int LENGTH = 16384 ;
+	public static final int LENGTH = 16384 ;
 	
 	
 	
@@ -77,6 +77,7 @@ public class Torrent {
 	private DataOutputStream output;
 	
 	private ByteBuffer responseBuffer;
+	private ByteBuffer requestBuffer;
 	
 	private int index = 0;
 	private int numBlocks;
@@ -96,6 +97,8 @@ public class Torrent {
 		
 		this.numBlocks = ti.piece_length/LENGTH;
 		firstBlock = true;
+		
+		this.requestBuffer = ByteBuffer.allocate(17);
 		
 		peers = new ArrayList<Peer>();
 		
@@ -338,7 +341,7 @@ public class Torrent {
     	byte[] piece = new byte[LENGTH];
     	ByteBuffer pieceBuffer = ByteBuffer.wrap(piece);
 	    
-	    //while(left > 0){
+	    while(left > 0){
 
 	    	try {
 	    		sendRequest();
@@ -384,34 +387,24 @@ public class Torrent {
 				return;
 			}
 	    	
-	    	firstBlock = !firstBlock;
+	    	this.firstBlock = !this.firstBlock;
 	    	
+	    	if(this.firstBlock){
+	    		index++;
+	    		System.out.println("index++");
+	    	}
 	    	
-	    	
-	    	downloaded += LENGTH;
-	    	left -= LENGTH;
+	    	this.downloaded += LENGTH;
+	    	this.left -= LENGTH;
 	    	
 	    	
 	    	pieceBuffer.clear();
 	    	messagesBuffer.clear();
 	    	
-	    	System.out.println("loop done: " + index);
 	    	
-	    	try {
-	    		sendRequest();
-	    	} catch (IOException e) {
-	    		// TODO Auto-generated catch block
-	    		e.printStackTrace();
-	    	}
-
-	    	try {
-	    		input.readFully(messages2);
-	    	} catch (IOException e) {
-	    		// TODO Auto-generated catch block
-	    		e.printStackTrace();
-	    		return;
-	    	}
-	   // }
+	    	System.out.println(this.left);
+	    	
+	    }
 	    
 		
 		
@@ -470,24 +463,32 @@ public class Torrent {
 	}
 	
 	public void sendRequest() throws IOException{
-		ByteBuffer buffer = ByteBuffer.allocate(17);
 		
-		buffer.put(REQUEST);
-		buffer.putInt(index);
+		System.out.println(requestBuffer.toString());
+		
+		requestBuffer.put(Torrent.REQUEST.duplicate());
+		
+		System.out.println(requestBuffer.toString());
+		requestBuffer.putInt(index);
+		
+		System.out.println(requestBuffer.toString());
 		
 		if(firstBlock)
-			buffer.putInt(0);
+			requestBuffer.putInt(0);
 		else
-			buffer.putInt(LENGTH);
+			requestBuffer.putInt(LENGTH);
 		
-		buffer.putInt(LENGTH);
+		System.out.println(requestBuffer.toString());
 		
-		System.out.println(index + "   " + firstBlock + "   " + LENGTH);
-		System.out.println(buffer.toString());
+		requestBuffer.putInt(LENGTH);
 		
-		sendMessage(buffer);
+		System.out.println(requestBuffer.toString());
 		
-		buffer.clear();
+		System.out.println(requestBuffer.hasRemaining());
+		
+		sendMessage(requestBuffer);
+		
+		requestBuffer.clear();
 	}
 	
 	//send an unchoke message to the peer
