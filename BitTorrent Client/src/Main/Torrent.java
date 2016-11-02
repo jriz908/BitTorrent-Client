@@ -53,6 +53,7 @@ public class Torrent {
 	
 	
 	
+	
 	private TorrentInfo torrentInfo;
 	
 	
@@ -78,6 +79,8 @@ public class Torrent {
 	private ByteBuffer responseBuffer;
 	
 	private int index = 0;
+	private int numBlocks;
+	private boolean firstBlock;
 	
 	
 	
@@ -89,7 +92,10 @@ public class Torrent {
 		this.downloaded = 0;
 		this.uploaded = 0;
 		this.left = torrentInfo.file_length;
-		this.event = "started";
+		this.event = "";
+		
+		this.numBlocks = ti.piece_length/LENGTH;
+		firstBlock = true;
 		
 		peers = new ArrayList<Peer>();
 		
@@ -103,8 +109,24 @@ public class Torrent {
 						   "&port=" + this.port + 
 						   "&uploaded=" + this.uploaded + 
 						   "&downloaded=" + this.downloaded + 
+						   "&left=" + this.left;	
+		
+		System.out.println(urlString);
+		trackerURL = new URL(urlString);
+	}
+	
+	public void setTrackerURLEventStarted() throws MalformedURLException{
+		
+		this.event = "started";
+		
+		String urlString = this.torrentInfo.announce_url.toString() + 
+						   "?info_hash=" + this.infoHash + 
+						   "&peer_id=" + this.peerID + 
+						   "&port=" + this.port + 
+						   "&uploaded=" + this.uploaded + 
+						   "&downloaded=" + this.downloaded + 
 						   "&left=" + this.left + 
-						   "&event=" + event;	
+						   "&event=" + this.event;	
 		
 		System.out.println(urlString);
 		trackerURL = new URL(urlString);
@@ -303,7 +325,12 @@ public class Torrent {
 	    	peer.setUnchoked(true);
 	    }
 	    
+	    trackerResponse.clear();
+	    
+	    setTrackerURLEventStarted();
 	    sendRequestToTracker();
+	    
+	    printTrackerResponse();
 	    
 	    byte[] messages2 = new byte[14];
     	ByteBuffer messagesBuffer = ByteBuffer.wrap(messages2);
@@ -357,14 +384,7 @@ public class Torrent {
 				return;
 			}
 	    	
-	    	pieceBuffer.clear();
-	    	
-	    	try {
-				sendHave();
-			} catch (IOException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
+	    	firstBlock = !firstBlock;
 	    	
 	    	
 	    	
@@ -372,13 +392,10 @@ public class Torrent {
 	    	left -= LENGTH;
 	    	
 	    	
-	    	
 	    	pieceBuffer.clear();
 	    	messagesBuffer.clear();
 	    	
 	    	System.out.println("loop done: " + index);
-	    	
-	    	index++;
 	    	
 	    	try {
 	    		sendRequest();
@@ -457,11 +474,20 @@ public class Torrent {
 		
 		buffer.put(REQUEST);
 		buffer.putInt(index);
-		buffer.putInt(0);
+		
+		if(firstBlock)
+			buffer.putInt(0);
+		else
+			buffer.putInt(LENGTH);
+		
 		buffer.putInt(LENGTH);
 		
+		System.out.println(index + "   " + firstBlock + "   " + LENGTH);
+		System.out.println(buffer.toString());
 		
 		sendMessage(buffer);
+		
+		buffer.clear();
 	}
 	
 	//send an unchoke message to the peer
