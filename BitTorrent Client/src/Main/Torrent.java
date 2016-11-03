@@ -6,6 +6,7 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -20,10 +21,12 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Formatter;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.net.InetAddress;
 
 import GivenTools.*;
 
@@ -135,6 +138,40 @@ public class Torrent {
 		trackerURL = new URL(urlString);
 	}
 	
+	public void setTrackerURLEventCompleted() throws MalformedURLException{
+		
+		this.event = "completed";
+		
+		String urlString = this.torrentInfo.announce_url.toString() + 
+						   "?info_hash=" + this.infoHash + 
+						   "&peer_id=" + this.peerID + 
+						   "&port=" + this.port + 
+						   "&uploaded=" + this.uploaded + 
+						   "&downloaded=" + this.downloaded + 
+						   "&left=" + this.left + 
+						   "&event=" + this.event;	
+		
+		System.out.println(urlString);
+		trackerURL = new URL(urlString);
+	}
+	
+	public void setTrackerURLEventStopped() throws MalformedURLException{
+		
+		this.event = "stopped";
+		
+		String urlString = this.torrentInfo.announce_url.toString() + 
+						   "?info_hash=" + this.infoHash + 
+						   "&peer_id=" + this.peerID + 
+						   "&port=" + this.port + 
+						   "&uploaded=" + this.uploaded + 
+						   "&downloaded=" + this.downloaded + 
+						   "&left=" + this.left + 
+						   "&event=" + this.event;	
+		
+		System.out.println(urlString);
+		trackerURL = new URL(urlString);
+	}
+	
 	//send a request to the tracker to get the list of peers
 	@SuppressWarnings("unchecked")
 	public void sendRequestToTracker() throws IOException, BencodingException{
@@ -183,237 +220,323 @@ public class Torrent {
 		}
 	}
 	
-	//for each peer in the list of authorized -RU peers, download from them
-	public void start() throws IOException, BencodingException{
-		Peer p = peers.get(2);
+	//download from fastest peer
+	public void start() throws IOException, BencodingException, InterruptedException{
+		//Peer p = getFastestPeer(peers);
+		Peer p = peers.get(0);
 		
 		download(p);
 	}
 	
-	public void close() throws IOException{
+	public void close() throws IOException, BencodingException{
+		
+		setTrackerURLEventStopped();
+		sendRequestToTracker();
+		
 		input.close();
 		output.close();
 		socket.close();
-	}
-	
-	//begin the process of downloading from peer
-	public void download(Peer peer) throws IOException, BencodingException{
-		
-		String ip = peer.getIP();
-		int port = peer.getPort();
-		
-		
-	    try {
-	           socket = new Socket(ip, port);
-	    }
-	    catch (IOException e) {
-	        System.out.println(e);
-	        return;
-	    }
-	    
-	    
-	    try {
-	       input = new DataInputStream(socket.getInputStream());
-	    }
-	    catch (IOException e) {
-	       System.out.println(e);
-	       return;
-	    }
-	    
-	    
-	    try {
-	       output = new DataOutputStream(socket.getOutputStream());
-	    }
-	    catch (IOException e) {
-	       System.out.println(e);
-	       return;
-	    }
-	    
-	    //handshake
-	    try {
-	    	sendHandshake();
-	    }
-	    catch (IOException e) {
-	    	System.out.println(e);
-	    	return;
-	    }
-	    
-	    //read handshake
-	    byte[] response = new byte[68];
-	    try {
-
-			input.readFully(response);
-			
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return;
-		}
-	    
-	    //check handshake ID
-	    String responseString = new String(response, "ASCII");
-	    
-	    String responsePeerID = responseString.substring(48);
-	    
-	    
-	    if(!responsePeerID.equals(peer.getPeer_ID())){
-	    	System.out.println("PEER ID DOES NOT MATCH");
-	    	return;
-	    }
-	    
-	    //check info_hash
-	    responseBuffer = ByteBuffer.wrap(response);
-	    
-	    byte[] infoHashArray = new byte[20];
-	    
-	    for(int i = 0; i < 20; i++){
-	    	infoHashArray[i] = responseBuffer.get(28 + i);
-	    }
-	    
-	    String responseInfoHash = encodeInfoHash(infoHashArray);
-	    
-	    if(!responseInfoHash.equals(infoHash)){
-	    	System.out.println("INFO HASH DOES NOT MATCH");
-	    	return;
-	    }
-	    
-	    System.out.println("HANDSHAKE COMPLETE");
-	    ToolKit.print(responseBuffer);
-	    
-	    responseBuffer.clear();
-	    
-	    
-	    
-	    try {
-			input.readFully(response);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return;
-		}
-	    
-	    //DISCARD BITFIELD
-	    
-	    responseString = new String(response, "ASCII");
-	    
-	    System.out.println(responseString);
-	    
-	    System.out.println(response[4]);
-	    
-	    //send interested
-	    
-	    byte[] messages = new byte[5];
-	    responseBuffer = ByteBuffer.wrap(messages);
-	    
-	    try {
-			sendInterested();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return;
-		}
-	    
-	    try {
-			input.readFully(messages);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return;
-		}
-	    
-	    
-	    
-	    if(messages[4] == 1){
-	    	System.out.println("Unchoke complete");
-	    	peer.setUnchoked(true);
-	    }
-	    
-	    trackerResponse.clear();
-	    
-	    setTrackerURLEventStarted();
-	    sendRequestToTracker();
-	    
-	    printTrackerResponse();
-	    
-	    byte[] messages2 = new byte[14];
-    	ByteBuffer messagesBuffer = ByteBuffer.wrap(messages2);
-    	
-    	byte[] piece = new byte[LENGTH];
-    	ByteBuffer pieceBuffer = ByteBuffer.wrap(piece);
-	    
-	    while(left > 0){
-
-	    	try {
-	    		sendRequest();
-	    	} catch (IOException e) {
-	    		// TODO Auto-generated catch block
-	    		e.printStackTrace();
-	    	}
-
-	    	try {
-	    		input.readFully(messages2);
-	    	} catch (IOException e) {
-	    		// TODO Auto-generated catch block
-	    		e.printStackTrace();
-	    		return;
-	    	}
-
-
-
-	    	int size = messagesBuffer.getInt();
-
-	    	System.out.println(size);
-	    	System.out.println(messagesBuffer.get());
-	    	System.out.println(messagesBuffer.get());
-	    	System.out.println(messagesBuffer.getInt());
-	    	System.out.println(messagesBuffer.getInt());
-
-	    	
-	    	
-
-	    	try {
-	    		input.readFully(piece);
-	    	} catch (IOException e) {
-	    		// TODO Auto-generated catch block
-	    		e.printStackTrace();
-	    		return;
-	    	}
-	    	
-	    	try {
-				writeToFile(piece);
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				return;
-			}
-	    	
-	    	this.firstBlock = !this.firstBlock;
-	    	
-	    	if(this.firstBlock){
-	    		index++;
-	    		System.out.println("index++");
-	    	}
-	    	
-	    	this.downloaded += LENGTH;
-	    	this.left -= LENGTH;
-	    	
-	    	
-	    	pieceBuffer.clear();
-	    	messagesBuffer.clear();
-	    	
-	    	
-	    	System.out.println(this.left);
-	    	
-	    }
-	    
-		
-		
 	}
 	
 	public void writeToFile(byte[] piece) throws IOException{
 		fos.write(piece);
 	}
 	
+	public Peer getFastestPeer(List<Peer> peers){
+		
+		double min = Double.MAX_VALUE;
+		double time = 0;
+		double avg = 0;
+		Peer result = null;
+		
+		for(Peer p : peers){
+			
+			for(int i = 0; i < 10; i++){
+				
+				double test = pingPeer(p);
+				
+				if(test < 0){
+					i--;
+					continue;
+				}
+				
+				time += test;
+				
+			}
+			
+			avg = time / 10;
+			
+			System.out.println("Average ping for " + p.getPeer_ID() + " is: " + avg);
+			
+			if(avg < min){
+				result = p;
+				min = avg;
+			}
+			
+		}
+		
+		System.out.println(result.getPeer_ID());
+		
+		return result;
+		
+		
+	}
+	
+	public double pingPeer(Peer peer){
+		
+		double result = 0;
+		
+		try {
+		      InetAddress inet = InetAddress.getByName(peer.getIP());
+		 
+		      long finish = 0;
+		      long start = new GregorianCalendar().getTimeInMillis();
+		 
+		      if (inet.isReachable(5000)){
+		        finish = new GregorianCalendar().getTimeInMillis();
+		        result = finish - start;
+		        System.out.println("Ping RTT: " + (result + "ms"));
+		      } else {
+		        System.out.println(peer.getIP() + " NOT reachable.");
+		        return -1;
+		      }
+		    } catch ( Exception e ) {
+		      System.out.println("Exception:" + e.getMessage());
+		    }
+		
+		
+		return result;
+	}
+	
+	//begin the process of downloading from peer
+	public void download(Peer peer) throws IOException, BencodingException, EOFException, InterruptedException{
+
+		String ip = peer.getIP();
+		int port = peer.getPort();
+
+
+		try {
+			socket = new Socket(ip, port);
+		}
+		catch (IOException e) {
+			System.out.println(e);
+			return;
+		}
+
+
+		try {
+			input = new DataInputStream(socket.getInputStream());
+		}
+		catch (IOException e) {
+			System.out.println(e);
+			return;
+		}
+
+
+		try {
+			output = new DataOutputStream(socket.getOutputStream());
+		}
+		catch (IOException e) {
+			System.out.println(e);
+			return;
+		}
+
+		//handshake
+		try {
+			sendHandshake();
+		}
+		catch (IOException e) {
+			System.out.println(e);
+			return;
+		}
+
+		//read handshake
+		byte[] response = new byte[68];
+		try {
+
+			input.readFully(response);
+
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
+
+		//check handshake ID
+		String responseString = new String(response, "ASCII");
+
+		String responsePeerID = responseString.substring(48);
+
+
+		if(!responsePeerID.equals(peer.getPeer_ID())){
+			System.out.println("PEER ID DOES NOT MATCH");
+			return;
+		}
+
+		//check info_hash
+		responseBuffer = ByteBuffer.wrap(response);
+
+		byte[] infoHashArray = new byte[20];
+
+		for(int i = 0; i < 20; i++){
+			infoHashArray[i] = responseBuffer.get(28 + i);
+		}
+
+		String responseInfoHash = encodeInfoHash(infoHashArray);
+
+		if(!responseInfoHash.equals(infoHash)){
+			System.out.println("INFO HASH DOES NOT MATCH");
+			return;
+		}
+
+		System.out.println("HANDSHAKE COMPLETE");
+		//ToolKit.print(responseBuffer);
+
+		responseBuffer.clear();
+
+
+
+		try {
+			input.readFully(response);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
+
+		//DISCARD BITFIELD
+
+		//send interested
+
+		byte[] messages = new byte[5];
+		responseBuffer = ByteBuffer.wrap(messages);
+
+		try {
+			sendInterested();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
+
+		try {
+			input.readFully(messages);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
+
+
+
+		if(messages[4] == 1){
+			System.out.println("Unchoke complete");
+			peer.setUnchoked(true);
+		}
+
+		trackerResponse.clear();
+
+		setTrackerURLEventStarted();
+		sendRequestToTracker();
+
+		//printTrackerResponse();
+
+		byte[] messages2 = new byte[14];
+		ByteBuffer messagesBuffer = ByteBuffer.wrap(messages2);
+
+		byte[] fileArray = new byte[torrentInfo.file_length];
+		ByteBuffer fileBuffer = ByteBuffer.wrap(fileArray);
+
+		System.out.println(torrentInfo.file_length);
+		
+		System.out.println("Starting download...");
+		
+		long startTime = System.currentTimeMillis();
+
+		while(left > 0){
+
+			try {
+				sendRequest();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			Thread.sleep(120);
+
+			try {
+				System.out.println(input.read(messages2));
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				return;
+			}
+
+
+			int size = messagesBuffer.getInt();
+
+			/*
+		    	System.out.println(size);
+		    	System.out.println(messagesBuffer.get());
+		    	System.out.println(messagesBuffer.get());
+		    	System.out.println(messagesBuffer.getInt());
+		    	System.out.println(messagesBuffer.getInt());
+			 */
+
+			int bytesRead;
+
+			try {
+				if(left < LENGTH)
+					 bytesRead = input.read(fileArray, 0, left);
+				else
+					 bytesRead = input.read(fileArray);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				return;
+			}
+		
+			this.downloaded += bytesRead;
+			this.left -= bytesRead;
+
+			System.out.println("Downloaded: " + this.downloaded + "   Index: " + index + "    First block? " + this.firstBlock);
+			
+			messagesBuffer.clear();
+
+
+
+
+			this.firstBlock = !this.firstBlock;
+
+			if(this.firstBlock){
+				index++;
+				//System.out.println("index++");
+			}
+
+		}
+		
+		long downloadTime = System.currentTimeMillis() - startTime;
+		
+		System.out.println("Download finished in " + downloadTime + "ms.");
+		
+		try {
+			writeToFile(fileArray);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
+		
+		
+		setTrackerURLEventCompleted();
+		sendRequestToTracker();
+		
+		
+
+
+
+	}
+
 	//for checking responses from peer
 	public boolean checkArrayEquality(byte[] one, byte[] two){
 		
@@ -464,31 +587,35 @@ public class Torrent {
 	
 	public void sendRequest() throws IOException{
 		
-		System.out.println(requestBuffer.toString());
+		int length; 
 		
-		requestBuffer.put(Torrent.REQUEST.duplicate());
-		
-		System.out.println(requestBuffer.toString());
+		if(left < torrentInfo.piece_length){
+			length = left/2;
+		}else{
+			length = LENGTH;
+		}
+			
+
+		requestBuffer.put(new byte[]{0, 0, 0, 13, 6});
+
 		requestBuffer.putInt(index);
-		
-		System.out.println(requestBuffer.toString());
-		
+
 		if(firstBlock)
 			requestBuffer.putInt(0);
 		else
 			requestBuffer.putInt(LENGTH);
 		
-		System.out.println(requestBuffer.toString());
-		
 		requestBuffer.putInt(LENGTH);
-		
-		System.out.println(requestBuffer.toString());
-		
-		System.out.println(requestBuffer.hasRemaining());
-		
+
 		sendMessage(requestBuffer);
 		
 		requestBuffer.clear();
+		
+		for(byte b : requestBuffer.array()){
+			System.out.println(b);
+		}
+		
+		System.out.println("-----");
 	}
 	
 	//send an unchoke message to the peer
