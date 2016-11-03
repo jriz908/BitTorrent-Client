@@ -441,7 +441,7 @@ public class Torrent {
 
 		//printTrackerResponse();
 
-		byte[] messages2 = new byte[14];
+		byte[] messages2 = new byte[13];
 		ByteBuffer messagesBuffer = ByteBuffer.wrap(messages2);
 
 		byte[] fileArray = new byte[torrentInfo.file_length];
@@ -465,7 +465,7 @@ public class Torrent {
 			Thread.sleep(120);
 
 			try {
-				System.out.println(input.read(messages2));
+				System.out.println(input.readFully(messages2));
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -473,7 +473,7 @@ public class Torrent {
 			}
 
 
-			int size = messagesBuffer.getInt();
+			//int size = messagesBuffer.getInt();
 
 			/*
 		    	System.out.println(size);
@@ -589,8 +589,8 @@ public class Torrent {
 		
 		int length; 
 		
-		if(left < torrentInfo.piece_length){
-			length = left/2;
+		if(left < LENGTH){
+			length = left;
 		}else{
 			length = LENGTH;
 		}
@@ -605,17 +605,12 @@ public class Torrent {
 		else
 			requestBuffer.putInt(LENGTH);
 		
-		requestBuffer.putInt(LENGTH);
+		requestBuffer.putInt(length);
 
 		sendMessage(requestBuffer);
 		
 		requestBuffer.clear();
 		
-		for(byte b : requestBuffer.array()){
-			System.out.println(b);
-		}
-		
-		System.out.println("-----");
 	}
 	
 	//send an unchoke message to the peer
