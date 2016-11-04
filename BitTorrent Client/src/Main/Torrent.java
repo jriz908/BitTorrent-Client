@@ -222,8 +222,8 @@ public class Torrent {
 	
 	//download from fastest peer
 	public void start() throws IOException, BencodingException, InterruptedException{
-		//Peer p = getFastestPeer(peers);
-		Peer p = peers.get(0);
+		Peer p = getFastestPeer(peers);
+		//Peer p = peers.get(0);
 		
 		download(p);
 	}
@@ -236,10 +236,6 @@ public class Torrent {
 		input.close();
 		output.close();
 		socket.close();
-	}
-	
-	public void writeToFile(byte[] piece) throws IOException{
-		fos.write(piece);
 	}
 	
 	public Peer getFastestPeer(List<Peer> peers){
@@ -441,8 +437,7 @@ public class Torrent {
 
 		//printTrackerResponse();
 
-		byte[] messages2 = new byte[13];
-		ByteBuffer messagesBuffer = ByteBuffer.wrap(messages2);
+
 
 		byte[] fileArray = new byte[torrentInfo.file_length];
 		ByteBuffer fileBuffer = ByteBuffer.wrap(fileArray);
@@ -452,9 +447,17 @@ public class Torrent {
 		System.out.println("Starting download...");
 		
 		long startTime = System.currentTimeMillis();
+		
+		byte[] test = new byte[13 + LENGTH];
+		ByteBuffer testBuffer = ByteBuffer.wrap(test);
+		testBuffer.clear();
 
 		while(left > 0){
-
+			
+			//byte[] messages2 = new byte[13];
+			//ByteBuffer messagesBuffer = ByteBuffer.wrap(messages2);
+			
+			
 			try {
 				sendRequest();
 			} catch (IOException e) {
@@ -462,19 +465,22 @@ public class Torrent {
 				e.printStackTrace();
 			}
 			
-			Thread.sleep(120);
+			Thread.sleep(500);
 
 			try {
-				System.out.println(input.readFully(messages2));
+				if(left >= LENGTH)
+					input.readFully(test);
+				else
+					input.read(test);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 				return;
 			}
-
-
-			//int size = messagesBuffer.getInt();
-
+			
+			//System.out.println(testBuffer.getInt() - 9);
+			
+			
 			/*
 		    	System.out.println(size);
 		    	System.out.println(messagesBuffer.get());
@@ -484,7 +490,14 @@ public class Torrent {
 			 */
 
 			int bytesRead;
-
+			
+			
+			
+			if(left < LENGTH)
+				fos.write(test, 13, left);
+			else
+				fos.write(test, 13, LENGTH);
+			/*
 			try {
 				if(left < LENGTH)
 					 bytesRead = input.read(fileArray, 0, left);
@@ -496,15 +509,16 @@ public class Torrent {
 				return;
 			}
 		
-			this.downloaded += bytesRead;
-			this.left -= bytesRead;
+			*/
+			this.downloaded += LENGTH;
+			this.left -= LENGTH;
 
 			System.out.println("Downloaded: " + this.downloaded + "   Index: " + index + "    First block? " + this.firstBlock);
 			
-			messagesBuffer.clear();
+			//messagesBuffer.clear();
 
 
-
+			testBuffer.clear();
 
 			this.firstBlock = !this.firstBlock;
 
@@ -518,14 +532,6 @@ public class Torrent {
 		long downloadTime = System.currentTimeMillis() - startTime;
 		
 		System.out.println("Download finished in " + downloadTime + "ms.");
-		
-		try {
-			writeToFile(fileArray);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return;
-		}
 		
 		
 		setTrackerURLEventCompleted();
@@ -596,7 +602,11 @@ public class Torrent {
 		}
 			
 
-		requestBuffer.put(new byte[]{0, 0, 0, 13, 6});
+		requestBuffer.put((byte) 0);
+		requestBuffer.put((byte) 0);
+		requestBuffer.put((byte) 0);
+		requestBuffer.put((byte) 13);
+		requestBuffer.put((byte) 6);
 
 		requestBuffer.putInt(index);
 
