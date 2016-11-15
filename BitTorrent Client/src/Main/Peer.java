@@ -7,6 +7,7 @@ public class Peer {
 	private String peer_ID;
 	private String IP;
 	private int port;
+	private boolean unchoked;
 	
 	public Peer(String peer_ID, String IP, int port){
 		this.peer_ID = peer_ID;
@@ -42,6 +43,14 @@ public class Peer {
 	}
 	public void setPort(int port) {
 		this.port = port;
+	}
+
+	public boolean isUnchoked() {
+		return unchoked;
+	}
+
+	public void setUnchoked(boolean unchoked) {
+		this.unchoked = unchoked;
 	}
 	
 	

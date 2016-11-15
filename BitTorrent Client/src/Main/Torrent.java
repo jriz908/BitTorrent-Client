@@ -19,6 +19,8 @@ import java.net.Socket;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.GregorianCalendar;
@@ -404,7 +406,7 @@ public class Torrent {
 
 		//send interested
 
-		byte[] messages = new byte[5];
+		byte[] messages = new byte[6];
 		responseBuffer = ByteBuffer.wrap(messages);
 
 		try {
@@ -439,25 +441,26 @@ public class Torrent {
 
 
 
-		byte[] fileArray = new byte[torrentInfo.file_length];
-		ByteBuffer fileBuffer = ByteBuffer.wrap(fileArray);
+		byte[] pieceArray = new byte[torrentInfo.piece_length];
+		ByteBuffer pieceBuffer = ByteBuffer.wrap(pieceArray);
+		
 
-		System.out.println(torrentInfo.file_length);
+		System.out.println(torrentInfo.piece_length);
 		
 		System.out.println("Starting download...");
 		
 		long startTime = System.currentTimeMillis();
 		
-		byte[] test = new byte[13 + LENGTH];
+		byte[] test = new byte[13];
 		ByteBuffer testBuffer = ByteBuffer.wrap(test);
-		testBuffer.clear();
+		
 
 		while(left > 0){
 			
-			//byte[] messages2 = new byte[13];
-			//ByteBuffer messagesBuffer = ByteBuffer.wrap(messages2);
+			pieceBuffer.clear();
 			
-			
+			testBuffer.clear();
+
 			try {
 				sendRequest();
 			} catch (IOException e) {
@@ -465,11 +468,12 @@ public class Torrent {
 				e.printStackTrace();
 			}
 			
-			Thread.sleep(500);
+			
+			Thread.sleep(1000);
 
 			try {
 				if(left >= LENGTH)
-					input.readFully(test);
+					System.out.println(input.read(test));
 				else
 					input.read(test);
 			} catch (IOException e) {
@@ -478,38 +482,31 @@ public class Torrent {
 				return;
 			}
 			
-			//System.out.println(testBuffer.getInt() - 9);
-			
-			
-			/*
-		    	System.out.println(size);
-		    	System.out.println(messagesBuffer.get());
-		    	System.out.println(messagesBuffer.get());
-		    	System.out.println(messagesBuffer.getInt());
-		    	System.out.println(messagesBuffer.getInt());
-			 */
-
-			int bytesRead;
 			
 			
 			
-			if(left < LENGTH)
-				fos.write(test, 13, left);
-			else
-				fos.write(test, 13, LENGTH);
-			/*
+			
+			
+			
+			
 			try {
-				if(left < LENGTH)
-					 bytesRead = input.read(fileArray, 0, left);
+				if(left < LENGTH){
+					 input.read(pieceArray, 0, left);
+					 fos.write(pieceArray);
+					 break;
+				}else if(firstBlock)
+					 input.read(pieceArray);
 				else
-					 bytesRead = input.read(fileArray);
+					 input.read(pieceArray, LENGTH, LENGTH);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 				return;
 			}
+			
+			
 		
-			*/
+			
 			this.downloaded += LENGTH;
 			this.left -= LENGTH;
 
@@ -523,16 +520,39 @@ public class Torrent {
 			this.firstBlock = !this.firstBlock;
 
 			if(this.firstBlock){
-				index++;
-				//System.out.println("index++");
+				
+				//check hash
+				
+				
+				
+				boolean check = (checkArrayEquality(getPieceHash(pieceArray), torrentInfo.piece_hashes[index].array()));
+				//System.out.println(check);
+				//System.out.println("CHECK HASH");
+				
+				if(check){
+					System.out.println("Hash verified");
+					fos.write(pieceArray);
+					index++;
+				}else{
+					System.out.println("Hash failed...reattempting piece download");
+					this.downloaded -= LENGTH*2;
+					this.left += LENGTH*2;
+					Thread.sleep(1000);
+
+					
+				}
+				
+				
+						
+						
 			}
+			
 
 		}
 		
 		long downloadTime = System.currentTimeMillis() - startTime;
 		
 		System.out.println("Download finished in " + downloadTime + "ms.");
-		
 		
 		setTrackerURLEventCompleted();
 		sendRequestToTracker();
@@ -541,6 +561,21 @@ public class Torrent {
 
 
 
+	}
+	
+	public byte[] getPieceHash(byte[] data){
+		
+		MessageDigest md = null;
+		
+		try {
+			md = MessageDigest.getInstance("SHA-1");
+		} catch (NoSuchAlgorithmException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		return (md.digest(data));
+		
 	}
 
 	//for checking responses from peer
@@ -551,8 +586,11 @@ public class Torrent {
 		}
 		
 		for(int i = 0; i < one.length; i++){
+			
+			//System.out.println(one[i] + " : " + two[i]);
+			
 			if(one[i] != two[i]){
-				System.out.println(one[i] + " : " + two[i]);
+				
 				return false;
 			}
 		}
