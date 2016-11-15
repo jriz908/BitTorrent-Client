@@ -1,5 +1,3 @@
-//Jacob Rizer
-
 package Main;
 
 import GivenTools.*;
@@ -15,7 +13,16 @@ import java.net.HttpURLConnection;
 
 
 
-
+/**
+ * @author Jacob Rizer
+ * 
+ * This class is for our main method.
+ * We pass in a torrent file and a name
+ * for the new file that we will create. With
+ * the torrentInfo object we are able to create a 
+ * Torrent and download the file.
+ *
+ */
 public class RUBTClient {
 
 	public static void main(String[] args) throws IOException, BencodingException, InterruptedException {
@@ -53,6 +60,7 @@ public class RUBTClient {
 		//create my torrent object
 		Torrent torrent = new Torrent(torrentInfo, filename);
 		
+		//set URL for messaging tracker
 		torrent.setTrackerURL();
 		
 		torrent.sendRequestToTracker();
@@ -60,8 +68,10 @@ public class RUBTClient {
 		//for debugging
 		//torrent.printTrackerResponse();
 		
+		//filter out the peers that do not have the -RU prefix
 		torrent.setPeers();
 		
+		//start our download
 		torrent.start();
 		
 		//clean up at the end
