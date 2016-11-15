@@ -18,7 +18,7 @@ import java.net.HttpURLConnection;
 
 public class RUBTClient {
 
-	public static void main(String[] args) throws IOException, BencodingException {
+	public static void main(String[] args) throws IOException, BencodingException, InterruptedException {
 		
 		//must pass in two arguments
 		if(args.length != 2){
@@ -58,7 +58,7 @@ public class RUBTClient {
 		torrent.sendRequestToTracker();
 		
 		//for debugging
-		torrent.printTrackerResponse();
+		//torrent.printTrackerResponse();
 		
 		torrent.setPeers();
 		
