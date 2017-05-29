@@ -13,11 +13,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
-/**
- * @author Min Chai
- * @author Terence Williams
- *
- */
 
 public class Peer implements Runnable {
 	private byte[] peer_id;
@@ -242,7 +237,7 @@ public class Peer implements Runnable {
 		System.out.println("From incoming peer: " + Arrays.toString(incomingPeersHandshake));
 		
 		/**
-		 * When serving files, you should check the incoming peer’s handshake to verify that the info_hash
+		 * When serving files, you should check the incoming peerÂ’s handshake to verify that the info_hash
 		 * matches one that you are serving and close the connection if not.
 		 */
 		if (!checkIncomingInfoHash(incomingPeersHandshake)) {
